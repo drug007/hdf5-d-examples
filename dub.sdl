@@ -38,3 +38,9 @@ configuration "compound_datatype2" {
     targetName  "compound_datatype2"
     sourceFiles "examples/compound_datatype2.d"
 }
+
+configuration "a" {
+    targetType  "executable"
+    targetName  "a"
+    sourceFiles "examples/aux.d"
+}
