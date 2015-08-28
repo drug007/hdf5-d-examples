@@ -1,0 +1,40 @@
+name "hdf5"
+description "A minimal D application."
+copyright "Copyright © 2015, drug"
+authors "drug"
+
+dependency "hdf5-d" version="~>0.0.1"
+
+libs "hdf5"
+
+targetPath  "bin"
+
+configuration "create_groups" {
+    targetType  "executable"
+    targetName  "create_groups"
+    sourceFiles "examples/common.d" "examples/create_groups.d"
+}
+
+configuration "create_datasets" {
+    targetType  "executable"
+    targetName  "create_datasets"
+    sourceFiles "examples/common.d" "examples/create_datasets.d"
+}
+
+configuration "create_extendible_datasets" {
+    targetType  "executable"
+    targetName  "create_extendible_datasets"
+    sourceFiles "examples/common.d" "examples/create_extendible_datasets.d"
+}
+
+configuration "compound_datatype" {
+    targetType  "executable"
+    targetName  "compound_datatype"
+    sourceFiles "examples/compound_datatype.d"
+}
+
+configuration "compound_datatype2" {
+    targetType  "executable"
+    targetName  "compound_datatype2"
+    sourceFiles "examples/compound_datatype2.d"
+}
