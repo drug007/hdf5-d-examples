@@ -43,9 +43,11 @@ struct DataAttribute
     string varName;
 }
 
-struct DataSpecification(Data)
+struct DataSpecification(Data) if(is(Data == struct))
 {    
-    this(Data data)
+    alias DataType = Data;
+
+    this(ref Data data)
     {
         alias TT = FieldTypeTuple!Data;
 
@@ -64,6 +66,7 @@ struct DataSpecification(Data)
         }
 
         _tid = H5Tcreate (H5T_class_t.H5T_COMPOUND, DataSpecification!(Data).sizeof);
+        _data_ptr = &data;
 
         foreach(da; _attributes)
         {
@@ -82,9 +85,43 @@ struct DataSpecification(Data)
         return _tid;
     }
 
+    auto dataPtr() const
+    {
+        return _data_ptr;
+    }
+
 private:
     DataAttribute[] _attributes;
     immutable hid_t _tid;
+    const(Data*) _data_ptr;
+}
+
+struct Dataset(Data)
+{
+    this(hid_t file, string name, hid_t space, ref Data data)
+    {
+        _data_spec = DataSpecification!Data(data);
+        _dataset = H5Dcreate2(file, name.ptr, _data_spec.tid, space, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        assert(_dataset >= 0);
+    }
+
+    /*
+     * Wtite data to the dataset; 
+     */ 
+    auto write(ref Data data)
+    {
+        auto status = H5Dwrite(_dataset, _data_spec.tid, H5S_ALL, H5S_ALL, H5P_DEFAULT, &data);
+        assert(status >= 0);
+    }
+
+    ~this()
+    {
+        H5Dclose(_dataset);
+    }
+
+private:
+    hid_t _dataset;
+    DataSpecification!Data _data_spec;
 }
 
 void main()
