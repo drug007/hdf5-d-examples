@@ -192,13 +192,13 @@ void main()
     auto space = DataSpace(RANK, dim);
     auto file  = H5File(filename);
 
-    auto foo = Foo();
+    auto foo = Foo(17, 9., 0.197);
 
     auto dataset = Dataset!Foo(file, datasetName, space, foo);
-
     dataset.write(foo);
 
-    foo.d = -123;
+    auto foor = Foo();
+    dataset.read(foor);
 
-    dataset.write(foo);
+    assert(foor == foo);
 }
