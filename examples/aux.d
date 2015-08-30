@@ -39,7 +39,8 @@ private
 struct DataAttribute
 {
     hid_t type;
-    string typeName;
+    size_t offset;
+    string varName;
 }
 
 struct DataSpecification(Data)
@@ -56,18 +57,47 @@ struct DataSpecification(Data)
             static if (staticIndexOf!(T, TT) != -1)
             {
                 mixin("hid_t hdf5Type = " ~ typeToHdf5Type!T ~ ";");
-                mixin("string hdf5TypeName = \"" ~ typeToHdf5Type!T ~ "\";");
-                _attributes ~= DataAttribute(hdf5Type, hdf5TypeName);
+                mixin("string varName = \"" ~ fullName ~ "\";");
+                mixin("enum offset = Data." ~ member ~ ".offsetof;");
+                _attributes ~= DataAttribute(hdf5Type, offset, varName);
             }
         }
+
+        _tid = H5Tcreate (H5T_class_t.H5T_COMPOUND, DataSpecification!(Data).sizeof);
+
+        foreach(da; _attributes)
+        {
+            auto status = H5Tinsert(_tid, da.varName.ptr, da.offset, da.type);
+            assert(status >= 0);
+        }
     }
+
+    ~this()
+    {
+        H5Tclose(_tid);
+    }
+
+    auto tid() const
+    {
+        return _tid;
+    }
+
 private:
     DataAttribute[] _attributes;
+    immutable hid_t _tid;
 }
 
 void main()
 {
     import std.stdio;
+
+    enum RANK   = 1;
+    enum LENGTH = 1;
+
+    hsize_t[1] dim = [ LENGTH ];   /* Dataspace dimensions */
+
+    string filename    = "autocompound.h5";
+    string datasetName = "dataset";
 
     H5open();
     
@@ -80,6 +110,37 @@ void main()
         //ulong ul;
     }
 
+    /*
+     * Create the data space.
+     */
+    auto space = H5Screate_simple(RANK, dim.ptr, null);
+    assert(space >= 0);
+
+    /*
+     * Create the file.
+     */
+    auto file = H5Fcreate(filename.ptr, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    assert(file >= 0);
+
     auto foo = Foo();
-    writeln(DataSpecification!Foo(foo));
+    auto foo_hdf5 = DataSpecification!Foo(foo);
+
+    /* 
+     * Create the dataset.
+     */
+    auto dataset = H5Dcreate2(file, datasetName.ptr, foo_hdf5.tid, space, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    assert(dataset >= 0);
+
+    /*
+     * Wtite data to the dataset; 
+     */ 
+    auto status = H5Dwrite(dataset, foo_hdf5.tid, H5S_ALL, H5S_ALL, H5P_DEFAULT, &foo);
+    assert(status >= 0);
+
+    /*
+     * Release resources
+     */
+    H5Sclose(space);
+    H5Dclose(dataset);
+    H5Fclose(file);
 }
