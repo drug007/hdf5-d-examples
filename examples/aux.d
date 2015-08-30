@@ -102,7 +102,7 @@ private:
 
 struct Dataset(Data)
 {
-    this(ref const(H5File) file, string name, ref const(DataSpace) space, ref Data data)
+    this(ref const(H5File) file, string name, ref const(DataSpace) space)
     {
         _data_spec = DataSpecification!Data.make();
         _dataset = H5Dcreate2(file._file, name.ptr, _data_spec.tid, space._space, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
@@ -220,7 +220,7 @@ void main()
 
         auto foo = Foo(17, 9., 0.197);
 
-        auto dataset = Dataset!Foo(file, datasetName, space, foo);
+        auto dataset = Dataset!Foo(file, datasetName, space);
         dataset.write(foo);
     }
 }
