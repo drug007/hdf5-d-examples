@@ -47,9 +47,14 @@ struct DataSpecification(Data) if(is(Data == struct))
 {    
     alias DataType = Data;
 
-    this(ref Data data)
+    @disable this();
+
+    static make()
     {
         alias TT = FieldTypeTuple!Data;
+
+        auto tid = H5Tcreate (H5T_class_t.H5T_COMPOUND, DataSpecification!(Data).sizeof);
+        DataAttribute[] attributes;
 
         foreach (member; __traits(allMembers, Data))
         {
@@ -61,18 +66,22 @@ struct DataSpecification(Data) if(is(Data == struct))
                 mixin("hid_t hdf5Type = " ~ typeToHdf5Type!T ~ ";");
                 mixin("string varName = \"" ~ fullName ~ "\";");
                 mixin("enum offset = Data." ~ member ~ ".offsetof;");
-                _attributes ~= DataAttribute(hdf5Type, offset, varName);
+                auto attr = DataAttribute(hdf5Type, offset, varName);
+                
+                auto status = H5Tinsert(tid, attr.varName.ptr, attr.offset, attr.type);
+                assert(status >= 0);
+
+                attributes ~= attr;
             }
         }
 
-        _tid = H5Tcreate (H5T_class_t.H5T_COMPOUND, DataSpecification!(Data).sizeof);
-        _data_ptr = &data;
+        return DataSpecification!Data(tid, attributes);
+    }
 
-        foreach(da; _attributes)
-        {
-            auto status = H5Tinsert(_tid, da.varName.ptr, da.offset, da.type);
-            assert(status >= 0);
-        }
+    this(const(hid_t) tid, DataAttribute[] attributes)
+    {
+        _tid = tid;
+        _attributes = attributes;
     }
 
     ~this()
@@ -85,11 +94,6 @@ struct DataSpecification(Data) if(is(Data == struct))
         return _tid;
     }
 
-    auto dataPtr() const
-    {
-        return _data_ptr;
-    }
-
 private:
     DataAttribute[] _attributes;
     immutable hid_t _tid;
@@ -100,7 +104,7 @@ struct Dataset(Data)
 {
     this(ref const(H5File) file, string name, ref const(DataSpace) space, ref Data data)
     {
-        _data_spec = DataSpecification!Data(data);
+        _data_spec = DataSpecification!Data.make();
         _dataset = H5Dcreate2(file._file, name.ptr, _data_spec.tid, space._space, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
         assert(_dataset >= 0);
     }
@@ -196,9 +200,4 @@ void main()
 
     auto dataset = Dataset!Foo(file, datasetName, space, foo);
     dataset.write(foo);
-
-    auto foor = Foo();
-    dataset.read(foor);
-
-    assert(foor == foo);
 }
