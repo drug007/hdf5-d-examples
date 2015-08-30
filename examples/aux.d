@@ -6,18 +6,19 @@ import hdf5.hdf5;
 auto choice(T)(T typename)
 {
     static if(is(T == int))
-        mixin();
+        mixin("");
     else
         static assert(0);
 }
 
 private
 {
-    alias AllowedTypes = TypeTuple!(int, double);
-    enum GLenum[] VectorHdf5Types =
+    alias AllowedTypes = TypeTuple!(float, int, double);
+    enum string[]/*GLenum[]*/ VectorHdf5Types =
     [
-        H5T_NATIVE_INT,
-        H5T_NATIVE_DOUBLE,
+        "H5T_NATIVE_FLOAT",
+        "H5T_NATIVE_INT",
+        "H5T_NATIVE_DOUBLE",
     ];
 
     template typeToHdf5Type(T)
@@ -29,57 +30,56 @@ private
             static assert(false, "Could not use " ~ T.stringof ~ ", there is no corresponding hdf5 data type");
         }
         else
-            enum typeToGLScalar = VectorHdf5Types[index];
-    }
-}
-
-struct Helper(Datatype)
-{
-
-    
-    void foo()
-    {
-        alias TT = FieldTypeTuple!Datatype;
-
-        pragma(msg, TT.stringof);
-
-        // Create all attribute description
-        foreach (member; __traits(allMembers, Datatype))
         {
-            enum fullName = "Datatype." ~ member;
-            mixin("alias T = typeof(" ~ fullName ~ ");");
-
-            static if (staticIndexOf!(T, TT) != -1)
-            {
-                pragma(msg, T.stringof);
-                pragma(msg, (typeToHdf5Type!T).stringof);
-        //        int location = program.attrib(member).location;
-        //        mixin("enum size_t offset = Datatype." ~ member ~ ".offsetof;");
-
-        //        enum UDAs = __traits(getAttributes, member);
-        //        bool normalize = (staticIndexOf!(Normalized, UDAs) == -1);
-
-        //        // detect suitable type
-        //        int n;
-        //        GLenum glType;
-        //        toGLTypeAndSize!T(glType, n);
-        //        _attributes ~= VertexAttribute(n, offset, glType, location, normalize ? GL_TRUE : GL_FALSE);
-
-            }
+            enum typeToHdf5Type = VectorHdf5Types[index];
         }
     }
 }
 
+struct DataAttribute
+{
+    hid_t type;
+    string typeName;
+}
+
+struct DataSpecification(Data)
+{    
+    this(Data data)
+    {
+        alias TT = FieldTypeTuple!Data;
+
+        foreach (member; __traits(allMembers, Data))
+        {
+            enum fullName = "Data." ~ member;
+            mixin("alias T = typeof(" ~ fullName ~ ");");
+
+            static if (staticIndexOf!(T, TT) != -1)
+            {
+                mixin("hid_t hdf5Type = " ~ typeToHdf5Type!T ~ ";");
+                mixin("string hdf5TypeName = \"" ~ typeToHdf5Type!T ~ "\";");
+                _attributes ~= DataAttribute(hdf5Type, hdf5TypeName);
+            }
+        }
+    }
+private:
+    DataAttribute[] _attributes;
+}
+
 void main()
 {
+    import std.stdio;
+
+    H5open();
+    
     static struct Foo
     {
         int i;
         float f;
         double d;
-        string str;
-        ulong ul;
+        //string str;
+        //ulong ul;
     }
 
-    auto h = Helper!Foo();
+    auto foo = Foo();
+    writeln(DataSpecification!Foo(foo));
 }

@@ -43,4 +43,5 @@ configuration "a" {
     targetType  "executable"
     targetName  "a"
     sourceFiles "examples/aux.d"
+    libs        "hdf5"
 }
