@@ -149,12 +149,21 @@ struct H5File
 {
     @disable this();
 
-    this(string filename)
+    enum Access { 
+        ReadOnly  = H5F_ACC_RDONLY, /*absence of rdwr => rd-only */
+        ReadWrite = H5F_ACC_RDWR, /*open for read and write    */
+        Trunc     = H5F_ACC_TRUNC, /*overwrite existing files   */
+        Exclude   = H5F_ACC_EXCL, /*fail if file already exists*/
+        Debug     = H5F_ACC_DEBUG, /*print debug info       */
+        Create    = H5F_ACC_CREAT, /*create non-existing files  */
+    };
+
+    this(string filename, uint flags, hid_t fcpl_id = H5P_DEFAULT, hid_t fapl_id = H5P_DEFAULT)
     {
         /*
          * Create the file.
          */
-        _file = H5Fcreate(filename.ptr, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+        _file = H5Fcreate(filename.ptr, flags, fcpl_id, fapl_id);
         assert(_file >= 0);
     }
 
@@ -193,11 +202,13 @@ void main()
         //ulong ul;
     }
 
-    auto space = DataSpace(RANK, dim);
-    auto file  = H5File(filename);
+    {
+        auto space = DataSpace(RANK, dim);
+        auto file  = H5File(filename, H5File.Access.Trunc);
 
-    auto foo = Foo(17, 9., 0.197);
+        auto foo = Foo(17, 9., 0.197);
 
-    auto dataset = Dataset!Foo(file, datasetName, space, foo);
-    dataset.write(foo);
+        auto dataset = Dataset!Foo(file, datasetName, space, foo);
+        dataset.write(foo);
+    }
 }
