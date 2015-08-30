@@ -98,10 +98,10 @@ private:
 
 struct Dataset(Data)
 {
-    this(hid_t file, string name, hid_t space, ref Data data)
+    this(ref const(H5File) file, string name, ref const(DataSpace) space, ref Data data)
     {
         _data_spec = DataSpecification!Data(data);
-        _dataset = H5Dcreate2(file, name.ptr, _data_spec.tid, space, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        _dataset = H5Dcreate2(file._file, name.ptr, _data_spec.tid, space._space, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
         assert(_dataset >= 0);
     }
 
@@ -122,6 +122,48 @@ struct Dataset(Data)
 private:
     hid_t _dataset;
     DataSpecification!Data _data_spec;
+}
+
+struct DataSpace
+{
+    this(int rank, hsize_t[] dim)
+    {
+        _space = H5Screate_simple(rank, dim.ptr, null);
+        assert(_space >= 0);
+    }
+
+    ~this()
+    {
+        H5Sclose(_space);
+    }
+
+private:
+    hid_t _space;
+}
+
+struct H5File
+{
+    @disable this();
+
+    this(string filename)
+    {
+        /*
+         * Create the file.
+         */
+        _file = H5Fcreate(filename.ptr, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+        assert(_file >= 0);
+    }
+
+    ~this()
+    {
+        /*
+         * Release resources
+         */
+        H5Fclose(_file);
+    }
+
+private:
+    hid_t _file;
 }
 
 void main()
@@ -147,37 +189,16 @@ void main()
         //ulong ul;
     }
 
-    /*
-     * Create the data space.
-     */
-    auto space = H5Screate_simple(RANK, dim.ptr, null);
-    assert(space >= 0);
-
-    /*
-     * Create the file.
-     */
-    auto file = H5Fcreate(filename.ptr, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    assert(file >= 0);
+    auto space = DataSpace(RANK, dim);
+    auto file  = H5File(filename);
 
     auto foo = Foo();
-    auto foo_hdf5 = DataSpecification!Foo(foo);
 
-    /* 
-     * Create the dataset.
-     */
-    auto dataset = H5Dcreate2(file, datasetName.ptr, foo_hdf5.tid, space, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    assert(dataset >= 0);
+    auto dataset = Dataset!Foo(file, datasetName, space, foo);
 
-    /*
-     * Wtite data to the dataset; 
-     */ 
-    auto status = H5Dwrite(dataset, foo_hdf5.tid, H5S_ALL, H5S_ALL, H5P_DEFAULT, &foo);
-    assert(status >= 0);
+    dataset.write(foo);
 
-    /*
-     * Release resources
-     */
-    H5Sclose(space);
-    H5Dclose(dataset);
-    H5Fclose(file);
+    foo.d = -123;
+
+    dataset.write(foo);
 }
