@@ -158,13 +158,25 @@ struct H5File
         Create    = H5F_ACC_CREAT, /*create non-existing files  */
     };
 
-    this(string filename, uint flags, hid_t fcpl_id = H5P_DEFAULT, hid_t fapl_id = H5P_DEFAULT)
+    this(string filename, uint flags, hid_t fapl_id = H5P_DEFAULT, hid_t fcpl_id = H5P_DEFAULT)
     {
-        /*
-         * Create the file.
-         */
-        _file = H5Fcreate(filename.ptr, flags, fcpl_id, fapl_id);
-        assert(_file >= 0);
+        // remove Access.Debug flag if any
+        auto f = flags & (- cast(uint) Access.Debug - 1);
+        if(((f == Access.Trunc) && (f != Access.Exclude)) ||
+           ((f != Access.Trunc) && (f == Access.Exclude)))
+        {
+            _file = H5Fcreate(filename.ptr, flags, fcpl_id, fapl_id);
+            assert(_file >= 0);
+        }
+        else
+        if(((f == Access.ReadOnly) && (f != Access.ReadWrite)) ||
+           ((f != Access.ReadOnly) && (f == Access.ReadWrite)))
+        {
+            _file = H5Fopen(filename.ptr, flags, fapl_id);
+            assert(_file >= 0);
+        }
+        else
+            assert(0, "Unknown flags combination.");
     }
 
     ~this()
