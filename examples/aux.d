@@ -177,7 +177,7 @@ struct H5File
     this(string filename, uint flags, hid_t fapl_id = H5P_DEFAULT, hid_t fcpl_id = H5P_DEFAULT)
     {
         // remove Access.Debug flag if any
-        auto f = flags & (- cast(uint) Access.Debug - 1);
+        auto f = flags & ~Access.Debug;
         if(((f == Access.Trunc) && (f != Access.Exclude)) ||
            ((f != Access.Trunc) && (f == Access.Exclude)))
         {
