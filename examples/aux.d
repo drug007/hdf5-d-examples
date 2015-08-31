@@ -109,12 +109,28 @@ struct Dataset(Data)
         assert(_dataset >= 0);
     }
 
+    this(ref const(H5File) file, string name)
+    {
+        _data_spec = DataSpecification!Data.make();
+        _dataset = H5Dopen2(file._file, name.ptr, H5P_DEFAULT);
+        assert(_dataset >= 0);
+    }
+
     /*
      * Wtite data to the dataset; 
      */ 
     auto write(ref Data data)
     {
         auto status = H5Dwrite(_dataset, _data_spec.tid, H5S_ALL, H5S_ALL, H5P_DEFAULT, &data);
+        assert(status >= 0);
+    }
+
+    /*
+     * Read data from the dataset.
+     */
+    auto read(ref Data data)
+    {
+        auto status = H5Dread(_dataset, _data_spec.tid, H5S_ALL, H5S_ALL, H5P_DEFAULT, &data);
         assert(status >= 0);
     }
 
@@ -214,13 +230,24 @@ void main()
         //ulong ul;
     }
 
+    Foo foo = Foo(17, 9., 0.197);
+    Foo foor;
+
     {
         auto space = DataSpace(RANK, dim);
         auto file  = H5File(filename, H5File.Access.Trunc);
 
-        auto foo = Foo(17, 9., 0.197);
-
         auto dataset = Dataset!Foo(file, datasetName, space);
         dataset.write(foo);
+    }
+
+    {
+        auto file = H5File(filename, H5File.Access.ReadOnly);
+        auto dataset = Dataset!Foo(file, datasetName);
+        
+        dataset.read(foor);
+        writeln(foor);
+        
+        assert(foor == foo);
     }
 }
