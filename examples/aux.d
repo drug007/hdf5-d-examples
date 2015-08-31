@@ -57,21 +57,23 @@ struct DataSpecification(Data) if(is(Data == struct))
             {
                 static if(is(T == enum))
                 {
-                    static assert(is(T : int));
+                    static assert(is(T : int), "hdf5 supports only enumeration based on integer type.");
                     // Create enum type
-                    auto enumType = H5Tenum_create (H5T_NATIVE_INT);
+                    alias BaseEnumType = OriginalType!T;
+                    mixin("hid_t hdf5Type = H5Tenum_create (" ~ typeToHdf5Type!BaseEnumType ~ ");");
+                    
                     
                     foreach (enumMember; EnumMembers!T)
                     {
                         auto val = enumMember;
-                        auto status = H5Tenum_insert (enumType, enumMember.stringof, &val);
+                        auto status = H5Tenum_insert (hdf5Type, enumMember.stringof, &val);
                         assert(status >= 0);
                     }
 
                     // Add the attribute
                     mixin("string varName = \"" ~ fullName ~ "\";");
                     mixin("enum offset = Data." ~ member ~ ".offsetof;");
-                    auto attr = DataAttribute(enumType, offset, varName);
+                    auto attr = DataAttribute(hdf5Type, offset, varName);
                     
                     auto status = H5Tinsert(tid, attr.varName.ptr, attr.offset, attr.type);
                     assert(status >= 0);
