@@ -55,15 +55,45 @@ struct DataSpecification(Data) if(is(Data == struct))
 
             static if (staticIndexOf!(T, TT) != -1)
             {
-                mixin("hid_t hdf5Type = " ~ typeToHdf5Type!T ~ ";");
-                mixin("string varName = \"" ~ fullName ~ "\";");
-                mixin("enum offset = Data." ~ member ~ ".offsetof;");
-                auto attr = DataAttribute(hdf5Type, offset, varName);
-                
-                auto status = H5Tinsert(tid, attr.varName.ptr, attr.offset, attr.type);
-                assert(status >= 0);
+                static if(is(T == enum))
+                {
+                    static assert(is(T : int));
+                    // Create enum type
+                    auto enumType = H5Tenum_create (H5T_NATIVE_INT);
+                    
+                    foreach (enumMember; EnumMembers!T)
+                    {
+                        auto val = enumMember;
+                        auto status = H5Tenum_insert (enumType, enumMember.stringof, &val);
+                        assert(status >= 0);
+                    }
 
-                attributes ~= attr;
+                    // Add the attribute
+                    mixin("string varName = \"" ~ fullName ~ "\";");
+                    mixin("enum offset = Data." ~ member ~ ".offsetof;");
+                    auto attr = DataAttribute(enumType, offset, varName);
+                    
+                    auto status = H5Tinsert(tid, attr.varName.ptr, attr.offset, attr.type);
+                    assert(status >= 0);
+
+                    attributes ~= attr;
+                }
+                else static if(is(T == struct))
+                {
+
+                }
+                else
+                {
+                    mixin("hid_t hdf5Type = " ~ typeToHdf5Type!T ~ ";");
+                    mixin("string varName = \"" ~ fullName ~ "\";");
+                    mixin("enum offset = Data." ~ member ~ ".offsetof;");
+                    auto attr = DataAttribute(hdf5Type, offset, varName);
+                    
+                    auto status = H5Tinsert(tid, attr.varName.ptr, attr.offset, attr.type);
+                    assert(status >= 0);
+
+                    attributes ~= attr;
+                }
             }
         }
 
@@ -157,13 +187,14 @@ struct H5File
 {
     @disable this();
 
-    enum Access { 
+    enum Access
+    {
         ReadOnly  = H5F_ACC_RDONLY, /*absence of rdwr => rd-only */
-        ReadWrite = H5F_ACC_RDWR, /*open for read and write    */
-        Trunc     = H5F_ACC_TRUNC, /*overwrite existing files   */
-        Exclude   = H5F_ACC_EXCL, /*fail if file already exists*/
-        Debug     = H5F_ACC_DEBUG, /*print debug info       */
-        Create    = H5F_ACC_CREAT, /*create non-existing files  */
+        ReadWrite = H5F_ACC_RDWR,   /*open for read and write    */
+        Trunc     = H5F_ACC_TRUNC,  /*overwrite existing files   */
+        Exclude   = H5F_ACC_EXCL,   /*fail if file already exists*/
+        Debug     = H5F_ACC_DEBUG,  /*print debug info           */
+        Create    = H5F_ACC_CREAT,  /*create non-existing files  */
     };
 
     this(string filename, uint flags, hid_t fapl_id = H5P_DEFAULT, hid_t fcpl_id = H5P_DEFAULT)
@@ -212,15 +243,20 @@ void main()
     string datasetName = "dataset";
 
     H5open();
+
+    enum TestEnum { a, b, c, d }
     
     static struct Foo
     {
         int i;
         float f;
         double d;
+        TestEnum test_enum;
+        float f2;
+        TestEnum test_enum2;
     }
 
-    Foo foo = Foo(17, 9., 0.197);
+    Foo foo = Foo(17, 9., 0.197, TestEnum.d, 0.3, TestEnum.c);
     Foo foor;
 
     {
