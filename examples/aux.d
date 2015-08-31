@@ -3,18 +3,10 @@ import std.typetuple;
 
 import hdf5.hdf5;
 
-auto choice(T)(T typename)
-{
-    static if(is(T == int))
-        mixin("");
-    else
-        static assert(0);
-}
-
 private
 {
     alias AllowedTypes = TypeTuple!(float, int, double);
-    enum string[]/*GLenum[]*/ VectorHdf5Types =
+    enum string[] VectorHdf5Types =
     [
         "H5T_NATIVE_FLOAT",
         "H5T_NATIVE_INT",
@@ -226,8 +218,6 @@ void main()
         int i;
         float f;
         double d;
-        //string str;
-        //ulong ul;
     }
 
     Foo foo = Foo(17, 9., 0.197);
