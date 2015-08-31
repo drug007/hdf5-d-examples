@@ -35,7 +35,7 @@ struct DataAttribute
     string varName;
 }
 
-struct DataSpecification(Data) if(is(Data == struct))
+struct DataSpecification(Data)
 {    
     alias DataType = Data;
 
@@ -45,59 +45,80 @@ struct DataSpecification(Data) if(is(Data == struct))
     {
         alias TT = FieldTypeTuple!Data;
 
-        auto tid = H5Tcreate (H5T_class_t.H5T_COMPOUND, DataSpecification!(Data).sizeof);
         DataAttribute[] attributes;
 
-        foreach (member; __traits(allMembers, Data))
+        // Создаем атрибуты
+        hid_t createStruct(D)(ref DataAttribute[] attributes) if(is(Data == struct))
         {
-            enum fullName = "Data." ~ member;
-            mixin("alias T = typeof(" ~ fullName ~ ");");
+            auto tid = H5Tcreate (H5T_class_t.H5T_COMPOUND, D.sizeof);
 
-            static if (staticIndexOf!(T, TT) != -1)
+            foreach (member; __traits(allMembers, D))
             {
-                static if(is(T == enum))
+                enum fullName = "D." ~ member;
+                enum hdf5Name = fullyQualifiedName!D ~ "." ~ member;
+
+                mixin("alias T = typeof(" ~ fullName ~ ");");
+                
+                static if (staticIndexOf!(T, TT) != -1)
                 {
-                    static assert(is(T : int), "hdf5 supports only enumeration based on integer type.");
-                    // Create enum type
-                    alias BaseEnumType = OriginalType!T;
-                    mixin("hid_t hdf5Type = H5Tenum_create (" ~ typeToHdf5Type!BaseEnumType ~ ");");
-                    
-                    
-                    foreach (enumMember; EnumMembers!T)
+                    static if(is(T == enum))
                     {
-                        auto val = enumMember;
-                        auto status = H5Tenum_insert (hdf5Type, enumMember.stringof, &val);
-                        assert(status >= 0);
+                        static assert(is(T : int), "hdf5 supports only enumeration based on integer type.");
+                        // Create enum type
+                        alias BaseEnumType = OriginalType!T;
+                        mixin("hid_t hdf5Type = H5Tenum_create (" ~ typeToHdf5Type!BaseEnumType ~ ");");
+                        
+                        
+                        foreach (enumMember; EnumMembers!T)
+                        {
+                            auto val = enumMember;
+                            auto status = H5Tenum_insert (hdf5Type, enumMember.stringof, &val);
+                            assert(status >= 0);
+                        }
+
+                        // Add the attribute
+                        mixin("string varName = \"" ~ hdf5Name ~ "\";");
+                        mixin("enum offset = D." ~ member ~ ".offsetof;");
+                        attributes ~= DataAttribute(hdf5Type, offset, varName);
                     }
+                    else static if(is(T == struct))
+                    {
+                        DataAttribute[] da;
+                        auto hdf5Type = createStruct!T(da);
 
-                    // Add the attribute
-                    mixin("string varName = \"" ~ fullName ~ "\";");
-                    mixin("enum offset = Data." ~ member ~ ".offsetof;");
-                    auto attr = DataAttribute(hdf5Type, offset, varName);
-                    
-                    auto status = H5Tinsert(tid, attr.varName.ptr, attr.offset, attr.type);
-                    assert(status >= 0);
-
-                    attributes ~= attr;
-                }
-                else static if(is(T == struct))
-                {
-
-                }
-                else
-                {
-                    mixin("hid_t hdf5Type = " ~ typeToHdf5Type!T ~ ";");
-                    mixin("string varName = \"" ~ fullName ~ "\";");
-                    mixin("enum offset = Data." ~ member ~ ".offsetof;");
-                    auto attr = DataAttribute(hdf5Type, offset, varName);
-                    
-                    auto status = H5Tinsert(tid, attr.varName.ptr, attr.offset, attr.type);
-                    assert(status >= 0);
-
-                    attributes ~= attr;
+                        insertAttributes(hdf5Type, da);
+                        
+                        mixin("string varName = \"" ~ hdf5Name ~ "\";");
+                        mixin("enum offset = D." ~ member ~ ".offsetof;");
+                        attributes ~= DataAttribute(hdf5Type, offset, varName);
+                    }
+                    else
+                    {
+                        mixin("hid_t hdf5Type = " ~ typeToHdf5Type!T ~ ";");
+                        
+                        mixin("string varName = \"" ~ hdf5Name ~ "\";");
+                        mixin("enum offset = D." ~ member ~ ".offsetof;");
+                        attributes ~= DataAttribute(hdf5Type, offset, varName);
+                    }
                 }
             }
+
+            return tid;
         }
+
+        // Insert attributes of the structure into the datatype
+        auto insertAttributes(hid_t hdf5Type, DataAttribute[] da)
+        {
+            foreach(attr; da)
+            {
+                auto status = H5Tinsert(hdf5Type, attr.varName.ptr, attr.offset, attr.type);
+                assert(status >= 0);
+            }
+        }
+
+        auto tid = createStruct!Data(attributes);
+
+        insertAttributes(tid, attributes);
 
         return DataSpecification!Data(tid, attributes);
     }
@@ -246,6 +267,13 @@ void main()
 
     H5open();
 
+    struct Bar
+    {
+        int i;
+        float f;
+        double d;
+    }
+
     enum TestEnum { a, b, c, d }
     
     static struct Foo
@@ -256,9 +284,12 @@ void main()
         TestEnum test_enum;
         float f2;
         TestEnum test_enum2;
+        Bar bar;
     }
 
-    Foo foo = Foo(17, 9., 0.197, TestEnum.d, 0.3, TestEnum.c);
+    Bar bar = Bar(123, 12.3, 1.23);
+
+    Foo foo = Foo(17, 9., 0.197, TestEnum.d, 0.3, TestEnum.c, bar);
     Foo foor;
 
     {
